@@ -6,6 +6,7 @@ import {
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
+  WsException,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
@@ -151,5 +152,28 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const userId = this.getUserIdFromSocket(client);
     if (!userId) return;
     client.to(data.chatId).emit('userStopTyping', { chatId: data.chatId, userId });
+  }
+
+  @SubscribeMessage('likeMessage')
+  async handleLikeMessage(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { chatId: string; messageId: string },
+  ) {
+    const userId = this.getUserIdFromSocket(client);
+    if (!userId) return;
+
+    if (!data.chatId || !data.messageId) {
+      throw new WsException('Invalid like data');
+    }
+
+    const chat = await this.chatService.getChatById(data.chatId);
+    if (!chat || (chat.user1Id !== userId && chat.user2Id !== userId)) {
+      throw new WsException('Access denied');
+    }
+
+    const updatedMessage = await this.messagesService.toggleLike(data.messageId, userId);
+    if (updatedMessage) {
+      this.server.to(data.chatId).emit('messageLiked', updatedMessage);
+    }
   }
 }
