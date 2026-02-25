@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req, UseGuards, Param } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, UseGuards, Param, InternalServerErrorException } from '@nestjs/common';
 import type { Request } from 'express';
 import { ChatService } from './chat.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -37,5 +37,20 @@ export class ChatController {
     const user = (req as any).user as { sub: string };
     await this.chatService.setPassKey(id, user.sub, passKey);
     return { success: true, message: 'Your pass key has been set' };
+  }
+
+  @Post(':id/notify')
+  @ApiOperation({ summary: 'Notify the other participant via email' })
+  async notify(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body('frontUrl') frontUrl: string,
+  ) {
+    const user = (req as any).user as { sub: string, name: string };
+    const success = await this.chatService.notifyParticipant(id, user.sub, user.name, frontUrl);
+    if (!success) {
+      throw new InternalServerErrorException('Failed to send notification email');
+    }
+    return { success: true, message: 'Notification email sent' };
   }
 }

@@ -1,9 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationService } from './notification.service';
 
 @Injectable()
 export class ChatService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationService: NotificationService
+  ) { }
 
   getChatById(id: string) {
     return this.prisma.chat.findUnique({ where: { id } });
@@ -75,5 +79,22 @@ export class ChatService {
       where: { id: chatId },
       data: { [field]: passKey || null },
     });
+  }
+
+  async notifyParticipant(chatId: string, senderId: string, senderName: string, frontUrl: string) {
+    const chat = await this.prisma.chat.findUnique({ where: { id: chatId } });
+    if (!chat) return false;
+
+    const otherUserId = chat.user1Id === senderId ? chat.user2Id : chat.user1Id;
+    const otherUser = await this.prisma.user.findUnique({
+      where: { id: otherUserId },
+      select: { email: true }
+    });
+
+    if (!otherUser?.email) return false;
+
+    // Use frontUrl/chatId as the link
+    const chatLink = `${frontUrl}/`; // Normally we'd deep link but / is the main app
+    return this.notificationService.sendNotificationEmail(otherUser.email, senderName, chatLink);
   }
 }

@@ -3,6 +3,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { ChatService } from './chat.service';
 import { ChatController } from './chat.controller';
 import { ChatGateway } from './chat.gateway';
+import { NotificationService } from './notification.service';
 import { MessagesModule } from '../messages/messages.module';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -22,7 +23,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
       inject: [ConfigService],
     }),
   ],
-  providers: [ChatService, ChatGateway],
+  providers: [ChatService, ChatGateway, NotificationService],
   controllers: [ChatController],
   exports: [ChatService],
 })
