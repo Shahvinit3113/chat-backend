@@ -34,18 +34,41 @@ export class MessagesService {
     }
   }
 
-  async createMessage(chatId: string, senderId: string, content: string) {
+  async createMessage(chatId: string, senderId: string, content: string, replyToId?: string) {
     const encryptedContent = this.encrypt(content);
     const message = await this.prisma.message.create({
-      data: { chatId, senderId, content: encryptedContent },
+      data: { chatId, senderId, content: encryptedContent, replyToId },
       include: {
         sender: {
           select: { id: true, name: true, email: true, avatar: true },
         },
+        replyTo: {
+          include: {
+            sender: { select: { name: true } }
+          }
+        }
       },
     });
 
-    return { ...message, content: this.decrypt(message.content) };
+    let decryptedReplyTo = message.replyTo ? { ...message.replyTo, content: this.decrypt(message.replyTo.content) } : null;
+
+    return { ...message, content: this.decrypt(message.content), replyTo: decryptedReplyTo };
+  }
+
+  async markAsRead(chatId: string, userId: string) {
+    console.log(`Prisma updating messages for chatId ${chatId} by user ${userId}`);
+    const result = await this.prisma.message.updateMany({
+      where: {
+        chatId,
+        senderId: { not: userId },
+        isRead: false,
+      },
+      data: {
+        isRead: true,
+        readAt: new Date(),
+      },
+    });
+    console.log(`Updated ${result.count} messages to read status`);
   }
 
   async getMessages(chatId: string, userId: string, passKey?: string) {
@@ -69,14 +92,23 @@ export class MessagesService {
         sender: {
           select: { id: true, name: true, email: true, avatar: true },
         },
+        replyTo: {
+          include: {
+            sender: { select: { name: true } }
+          }
+        }
       },
       orderBy: { createdAt: 'asc' },
     });
 
-    return messages.map((msg) => ({
-      ...msg,
-      content: this.decrypt(msg.content),
-    }));
+    return messages.map((msg) => {
+      let decryptedReplyTo = msg.replyTo ? { ...msg.replyTo, content: this.decrypt(msg.replyTo.content) } : null;
+      return {
+        ...msg,
+        content: this.decrypt(msg.content),
+        replyTo: decryptedReplyTo
+      };
+    });
   }
 
   async toggleLike(messageId: string, userId: string) {
@@ -100,9 +132,16 @@ export class MessagesService {
         sender: {
           select: { id: true, name: true, email: true, avatar: true },
         },
+        replyTo: {
+          include: {
+            sender: { select: { name: true } }
+          }
+        }
       },
     });
 
-    return { ...updatedMessage, content: this.decrypt(updatedMessage.content) };
+    let decryptedReplyTo = updatedMessage.replyTo ? { ...updatedMessage.replyTo, content: this.decrypt(updatedMessage.replyTo.content) } : null;
+
+    return { ...updatedMessage, content: this.decrypt(updatedMessage.content), replyTo: decryptedReplyTo };
   }
 }

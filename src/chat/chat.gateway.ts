@@ -103,7 +103,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('sendMessage')
   async handleSendMessage(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { chatId: string; content: string },
+    @MessageBody() data: { chatId: string; content: string; replyToId?: string },
   ) {
     const userId = this.getUserIdFromSocket(client);
     if (!userId) {
@@ -126,12 +126,26 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       data.chatId,
       userId,
       data.content,
+      data.replyToId
     );
 
     this.server.to(data.chatId).emit('newMessage', {
       ...message,
       senderId: userId,
     });
+  }
+
+  @SubscribeMessage('markAsRead')
+  async handleMarkAsRead(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { chatId: string },
+  ) {
+    const userId = this.getUserIdFromSocket(client);
+    if (!userId) return;
+
+    console.log(`User ${userId} marking chatId ${data.chatId} as read`);
+    await this.messagesService.markAsRead(data.chatId, userId);
+    this.server.to(data.chatId).emit('messagesRead', { chatId: data.chatId, readerId: userId });
   }
 
   @SubscribeMessage('typing')
